@@ -43,6 +43,7 @@ steps:
 - powershell: |
     . build/azure-pipelines/win32/exec.ps1
     $ErrorActionPreference = "Stop"
+    $env:VSCODE_WEB_BUILD="true"
     $env:VSCODE_MIXIN_PASSWORD="$(github-distro-mixin-password)"
     .\build\azure-pipelines\win32\build.ps1
   displayName: Build
@@ -55,12 +56,12 @@ steps:
     # yarn smoketest -- --build "$(agent.builddirectory)\VSCode-win32-$(VSCODE_ARCH)"
   displayName: Run unit tests
 
-- powershell: |
-    . build/azure-pipelines/win32/exec.ps1
-    $ErrorActionPreference = "Stop"
-    exec { yarn gulp "electron-$(VSCODE_ARCH)" }
-    exec { .\scripts\test-integration.bat --build --tfs "Integration Tests" }
-  displayName: Run integration tests
+# - powershell: |
+#     . build/azure-pipelines/win32/exec.ps1
+#     $ErrorActionPreference = "Stop"
+#     exec { yarn gulp "electron-$(VSCODE_ARCH)" }
+#     exec { .\scripts\test-integration.bat --build --tfs "Integration Tests" }
+#   displayName: Run integration tests
 
 - task: SFP.build-tasks.custom-build-task-1.EsrpCodeSigning@1
   inputs:

@@ -42,6 +42,7 @@ steps:
 
 - script: |
     set -e
+    VSCODE_WEB_BUILD="true"
     VSCODE_MIXIN_PASSWORD="$(github-distro-mixin-password)" \
     ./build/azure-pipelines/linux/build.sh
   displayName: Build
