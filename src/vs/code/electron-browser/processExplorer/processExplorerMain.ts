@@ -7,24 +7,24 @@ import 'vs/css!./media/processExplorer';
 import { webFrame, ipcRenderer, clipboard } from 'electron';
 import { repeat } from 'vs/base/common/strings';
 import { totalmem } from 'os';
-import product from 'vs/platform/product/node/product';
+import product from 'vs/platform/product/common/product';
 import { localize } from 'vs/nls';
-import { ProcessExplorerStyles, ProcessExplorerData } from 'vs/platform/issue/common/issue';
+import { ProcessExplorerStyles, ProcessExplorerData } from 'vs/platform/issue/node/issue';
 import * as browser from 'vs/base/browser/browser';
 import * as platform from 'vs/base/common/platform';
 import { IContextMenuItem } from 'vs/base/parts/contextmenu/common/contextmenu';
 import { popup } from 'vs/base/parts/contextmenu/electron-browser/contextmenu';
 import { ProcessItem } from 'vs/base/common/processes';
 import { addDisposableListener } from 'vs/base/browser/dom';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { isRemoteDiagnosticError, IRemoteDiagnosticError } from 'vs/platform/diagnostics/common/diagnosticsService';
+import { DisposableStore } from 'vs/base/common/lifecycle';
+import { isRemoteDiagnosticError, IRemoteDiagnosticError } from 'vs/platform/diagnostics/common/diagnostics';
 
 
 let mapPidToWindowTitle = new Map<number, string>();
 
 const DEBUG_FLAGS_PATTERN = /\s--(inspect|debug)(-brk|port)?=(\d+)?/;
 const DEBUG_PORT_PATTERN = /\s--(inspect|debug)-port=(\d+)/;
-const listeners: IDisposable[] = [];
+const listeners = new DisposableStore();
 const collapsedStateCache: Map<string, boolean> = new Map<string, boolean>();
 let lastRequestTime: number;
 
@@ -171,7 +171,7 @@ function renderProcessGroupHeader(sectionName: string, body: HTMLElement, contai
 	updateSectionCollapsedState(!collapsedStateCache.get(sectionName), body, twistie, sectionName);
 	data.prepend(twistie);
 
-	listeners.push(addDisposableListener(data, 'click', (e) => {
+	listeners.add(addDisposableListener(data, 'click', (e) => {
 		const isHidden = body.classList.contains('hidden');
 		updateSectionCollapsedState(isHidden, body, twistie, sectionName);
 	}));
@@ -222,7 +222,7 @@ function renderTableSection(sectionName: string, processList: FormattedProcessIt
 
 		row.append(cpu, memory, pid, name);
 
-		listeners.push(addDisposableListener(row, 'contextmenu', (e) => {
+		listeners.add(addDisposableListener(row, 'contextmenu', (e) => {
 			showContextMenu(e, p, sectionIsLocal);
 		}));
 
@@ -239,7 +239,7 @@ function updateProcessInfo(processLists: [{ name: string, rootProcess: ProcessIt
 	}
 
 	container.innerHTML = '';
-	listeners.forEach(l => l.dispose());
+	listeners.clear();
 
 	const tableHead = document.createElement('thead');
 	tableHead.innerHTML = `<tr>

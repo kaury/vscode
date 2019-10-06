@@ -12,14 +12,13 @@ import { SyncActionDescriptor, MenuId, MenuRegistry } from 'vs/platform/actions/
 import { IWorkbenchActionRegistry, Extensions } from 'vs/workbench/common/actions';
 import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { IWorkbenchLayoutService, Parts, Position } from 'vs/workbench/services/layout/browser/layoutService';
-import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IEditorGroupsService, GroupOrientation } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeyMod, KeyCode, KeyChord } from 'vs/base/common/keyCodes';
-import { dispose, IDisposable } from 'vs/base/common/lifecycle';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 import { MenuBarVisibility } from 'vs/platform/windows/common/windows';
-import { isWindows, isLinux } from 'vs/base/common/platform';
-import { IsMacContext } from 'vs/workbench/browser/contextkeys';
+import { isWindows, isLinux, isWeb } from 'vs/base/common/platform';
+import { IsMacNativeContext } from 'vs/workbench/browser/contextkeys';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { InEditorZenModeContext, IsCenteredLayoutContext } from 'vs/workbench/common/editor';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
@@ -110,7 +109,7 @@ export class ToggleEditorLayoutAction extends Action {
 	static readonly ID = 'workbench.action.toggleEditorGroupLayout';
 	static readonly LABEL = nls.localize('flipLayout', "Toggle Vertical/Horizontal Editor Layout");
 
-	private toDispose: IDisposable[];
+	private readonly toDispose = this._register(new DisposableStore());
 
 	constructor(
 		id: string,
@@ -119,17 +118,15 @@ export class ToggleEditorLayoutAction extends Action {
 	) {
 		super(id, label);
 
-		this.toDispose = [];
-
-		this.class = 'flip-editor-layout';
+		this.class = 'codicon-editor-layout';
 		this.updateEnablement();
 
 		this.registerListeners();
 	}
 
 	private registerListeners(): void {
-		this.toDispose.push(this.editorGroupService.onDidAddGroup(() => this.updateEnablement()));
-		this.toDispose.push(this.editorGroupService.onDidRemoveGroup(() => this.updateEnablement()));
+		this.toDispose.add(this.editorGroupService.onDidAddGroup(() => this.updateEnablement()));
+		this.toDispose.add(this.editorGroupService.onDidRemoveGroup(() => this.updateEnablement()));
 	}
 
 	private updateEnablement(): void {
@@ -142,25 +139,10 @@ export class ToggleEditorLayoutAction extends Action {
 
 		return Promise.resolve();
 	}
-
-	dispose(): void {
-		this.toDispose = dispose(this.toDispose);
-
-		super.dispose();
-	}
 }
 
-CommandsRegistry.registerCommand('_workbench.editor.setGroupOrientation', function (accessor: ServicesAccessor, args: [GroupOrientation]) {
-	const editorGroupService = accessor.get(IEditorGroupsService);
-	const [orientation] = args;
-
-	editorGroupService.setGroupOrientation(orientation);
-
-	return Promise.resolve();
-});
-
 const group = viewCategory;
-registry.registerWorkbenchAction(new SyncActionDescriptor(ToggleEditorLayoutAction, ToggleEditorLayoutAction.ID, ToggleEditorLayoutAction.LABEL, { primary: KeyMod.Shift | KeyMod.Alt | KeyCode.KEY_0, mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KEY_0 } }), 'View: Flip Editor Group Layout', group);
+registry.registerWorkbenchAction(new SyncActionDescriptor(ToggleEditorLayoutAction, ToggleEditorLayoutAction.ID, ToggleEditorLayoutAction.LABEL, { primary: KeyMod.Shift | KeyMod.Alt | KeyCode.KEY_0, mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KEY_0 } }), 'View: Toggle Vertical/Horizontal Editor Layout', group);
 
 MenuRegistry.appendMenuItem(MenuId.MenubarLayoutMenu, {
 	group: 'z_flip',
@@ -242,14 +224,13 @@ export class ToggleEditorVisibilityAction extends Action {
 	}
 
 	run(): Promise<any> {
-		const hideEditor = this.layoutService.isVisible(Parts.EDITOR_PART);
-		this.layoutService.setEditorHidden(hideEditor);
+		this.layoutService.toggleMaximizedPanel();
 
 		return Promise.resolve();
 	}
 }
 
-registry.registerWorkbenchAction(new SyncActionDescriptor(ToggleEditorVisibilityAction, ToggleEditorVisibilityAction.ID, ToggleEditorVisibilityAction.LABEL), 'View: Toggle Editor Area Visibility', viewCategory, ContextKeyExpr.equals('config.workbench.useExperimentalGridLayout', true));
+registry.registerWorkbenchAction(new SyncActionDescriptor(ToggleEditorVisibilityAction, ToggleEditorVisibilityAction.ID, ToggleEditorVisibilityAction.LABEL), 'View: Toggle Editor Area Visibility', viewCategory);
 
 export class ToggleSidebarVisibilityAction extends Action {
 
@@ -275,6 +256,13 @@ export class ToggleSidebarVisibilityAction extends Action {
 }
 
 registry.registerWorkbenchAction(new SyncActionDescriptor(ToggleSidebarVisibilityAction, ToggleSidebarVisibilityAction.ID, ToggleSidebarVisibilityAction.LABEL, { primary: KeyMod.CtrlCmd | KeyCode.KEY_B }), 'View: Toggle Side Bar Visibility', viewCategory);
+
+MenuRegistry.appendMenuItem(MenuId.MenubarViewMenu, {
+	group: '2_appearance',
+	title: nls.localize({ key: 'miAppearance', comment: ['&& denotes a mnemonic'] }, "&&Appearance"),
+	submenu: MenuId.MenubarAppearanceMenu,
+	order: 1
+});
 
 MenuRegistry.appendMenuItem(MenuId.MenubarAppearanceMenu, {
 	group: '2_workbench_layout',
@@ -439,7 +427,7 @@ export class ToggleMenuBarAction extends Action {
 	}
 }
 
-if (isWindows || isLinux) {
+if (isWindows || isLinux || isWeb) {
 	registry.registerWorkbenchAction(new SyncActionDescriptor(ToggleMenuBarAction, ToggleMenuBarAction.ID, ToggleMenuBarAction.LABEL), 'View: Toggle Menu Bar', viewCategory);
 }
 
@@ -448,9 +436,9 @@ MenuRegistry.appendMenuItem(MenuId.MenubarAppearanceMenu, {
 	command: {
 		id: ToggleMenuBarAction.ID,
 		title: nls.localize({ key: 'miShowMenuBar', comment: ['&& denotes a mnemonic'] }, "Show Menu &&Bar"),
-		toggled: ContextKeyExpr.and(IsMacContext.toNegated(), ContextKeyExpr.notEquals('config.window.menuBarVisibility', 'hidden'), ContextKeyExpr.notEquals('config.window.menuBarVisibility', 'toggle'))
+		toggled: ContextKeyExpr.and(IsMacNativeContext.toNegated(), ContextKeyExpr.notEquals('config.window.menuBarVisibility', 'hidden'), ContextKeyExpr.notEquals('config.window.menuBarVisibility', 'toggle'))
 	},
-	when: IsMacContext.toNegated(),
+	when: IsMacNativeContext.toNegated(),
 	order: 0
 });
 

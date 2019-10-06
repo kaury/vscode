@@ -8,7 +8,7 @@ import { Action } from 'vs/base/common/actions';
 import * as dom from 'vs/base/browser/dom';
 import { BaseActionViewItem, IBaseActionViewItemOptions, Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { dispose, IDisposable, Disposable, toDisposable } from 'vs/base/common/lifecycle';
+import { dispose, toDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IThemeService, ITheme } from 'vs/platform/theme/common/themeService';
 import { TextBadge, NumberBadge, IBadge, IconBadge, ProgressBadge } from 'vs/workbench/services/activity/common/activity';
@@ -51,11 +51,11 @@ export interface ICompositeBar {
 
 export class ActivityAction extends Action {
 
-	private _onDidChangeActivity = new Emitter<this>();
-	get onDidChangeActivity(): Event<this> { return this._onDidChangeActivity.event; }
+	private readonly _onDidChangeActivity = new Emitter<this>();
+	readonly onDidChangeActivity: Event<this> = this._onDidChangeActivity.event;
 
-	private _onDidChangeBadge = new Emitter<this>();
-	get onDidChangeBadge(): Event<this> { return this._onDidChangeBadge.event; }
+	private readonly _onDidChangeBadge = new Emitter<this>();
+	readonly onDidChangeBadge: Event<this> = this._onDidChangeBadge.event;
 
 	private badge?: IBadge;
 	private clazz: string | undefined;
@@ -124,13 +124,13 @@ export interface IActivityActionViewItemOptions extends IBaseActionViewItemOptio
 }
 
 export class ActivityActionViewItem extends BaseActionViewItem {
-	protected container: HTMLElement;
-	protected label: HTMLElement;
-	protected badge: HTMLElement;
-	protected options: IActivityActionViewItemOptions;
+	protected container!: HTMLElement;
+	protected label!: HTMLElement;
+	protected badge!: HTMLElement;
+	protected options!: IActivityActionViewItemOptions;
 
-	private badgeContent: HTMLElement;
-	private badgeDisposable: IDisposable = Disposable.None;
+	private badgeContent: HTMLElement | undefined;
+	private readonly badgeDisposable = this._register(new MutableDisposable());
 	private mouseUpTimeout: any;
 
 	constructor(
@@ -156,12 +156,12 @@ export class ActivityActionViewItem extends BaseActionViewItem {
 		if (this.label) {
 			if (this.options.icon) {
 				const foreground = this._action.checked ? colors.activeBackgroundColor || colors.activeForegroundColor : colors.inactiveBackgroundColor || colors.inactiveForegroundColor;
-				this.label.style.backgroundColor = foreground ? foreground.toString() : null;
+				this.label.style.backgroundColor = foreground ? foreground.toString() : '';
 			} else {
 				const foreground = this._action.checked ? colors.activeForegroundColor : colors.inactiveForegroundColor;
 				const borderBottomColor = this._action.checked ? colors.activeBorderBottomColor : null;
 				this.label.style.color = foreground ? foreground.toString() : null;
-				this.label.style.borderBottomColor = borderBottomColor ? borderBottomColor.toString() : null;
+				this.label.style.borderBottomColor = borderBottomColor ? borderBottomColor.toString() : '';
 			}
 		}
 
@@ -172,11 +172,11 @@ export class ActivityActionViewItem extends BaseActionViewItem {
 			const contrastBorderColor = theme.getColor(contrastBorder);
 
 			this.badgeContent.style.color = badgeForeground ? badgeForeground.toString() : null;
-			this.badgeContent.style.backgroundColor = badgeBackground ? badgeBackground.toString() : null;
+			this.badgeContent.style.backgroundColor = badgeBackground ? badgeBackground.toString() : '';
 
-			this.badgeContent.style.borderStyle = contrastBorderColor ? 'solid' : null;
-			this.badgeContent.style.borderWidth = contrastBorderColor ? '1px' : null;
-			this.badgeContent.style.borderColor = contrastBorderColor ? contrastBorderColor.toString() : null;
+			this.badgeContent.style.borderStyle = contrastBorderColor ? 'solid' : '';
+			this.badgeContent.style.borderWidth = contrastBorderColor ? '1px' : '';
+			this.badgeContent.style.borderColor = contrastBorderColor ? contrastBorderColor.toString() : '';
 		}
 	}
 
@@ -236,8 +236,7 @@ export class ActivityActionViewItem extends BaseActionViewItem {
 		const badge = action.getBadge();
 		const clazz = action.getClass();
 
-		this.badgeDisposable.dispose();
-		this.badgeDisposable = Disposable.None;
+		this.badgeDisposable.clear();
 
 		dom.clearNode(this.badgeContent);
 		dom.hide(this.badge);
@@ -280,7 +279,7 @@ export class ActivityActionViewItem extends BaseActionViewItem {
 
 			if (clazz) {
 				dom.addClasses(this.badge, clazz);
-				this.badgeDisposable = toDisposable(() => dom.removeClasses(this.badge, clazz));
+				this.badgeDisposable.value = toDisposable(() => dom.removeClasses(this.badge, clazz));
 			}
 		}
 
@@ -348,7 +347,7 @@ export class CompositeOverflowActivityAction extends ActivityAction {
 }
 
 export class CompositeOverflowActivityActionViewItem extends ActivityActionViewItem {
-	private actions: Action[];
+	private actions: Action[] | undefined;
 
 	constructor(
 		action: ActivityAction,
@@ -372,8 +371,8 @@ export class CompositeOverflowActivityActionViewItem extends ActivityActionViewI
 
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => this.element!,
-			getActions: () => this.actions,
-			onHide: () => dispose(this.actions)
+			getActions: () => this.actions!,
+			onHide: () => dispose(this.actions!)
 		});
 	}
 
@@ -403,7 +402,9 @@ export class CompositeOverflowActivityActionViewItem extends ActivityActionViewI
 	dispose(): void {
 		super.dispose();
 
-		this.actions = dispose(this.actions);
+		if (this.actions) {
+			this.actions = dispose(this.actions);
+		}
 	}
 }
 
@@ -432,7 +433,7 @@ export class CompositeActionViewItem extends ActivityActionViewItem {
 
 	private static manageExtensionAction: ManageExtensionAction;
 
-	private compositeActivity: IActivity | null;
+	private compositeActivity: IActivity | undefined;
 	private compositeTransfer: LocalSelectionTransfer<DraggedCompositeIdentifier>;
 
 	constructor(
@@ -455,7 +456,7 @@ export class CompositeActionViewItem extends ActivityActionViewItem {
 			CompositeActionViewItem.manageExtensionAction = instantiationService.createInstance(ManageExtensionAction);
 		}
 
-		this._register(compositeActivityAction.onDidChangeActivity(() => { this.compositeActivity = null; this.updateActivity(); }, this));
+		this._register(compositeActivityAction.onDidChangeActivity(() => { this.compositeActivity = undefined; this.updateActivity(); }, this));
 	}
 
 	protected get activity(): IActivity {
@@ -562,7 +563,7 @@ export class CompositeActionViewItem extends ActivityActionViewItem {
 		const theme = this.themeService.getTheme();
 		const dragBackground = this.options.colors(theme).dragAndDropBackground;
 
-		element.style.backgroundColor = isDragging && dragBackground ? dragBackground.toString() : null;
+		element.style.backgroundColor = isDragging && dragBackground ? dragBackground.toString() : '';
 	}
 
 	private showContextMenu(container: HTMLElement): void {

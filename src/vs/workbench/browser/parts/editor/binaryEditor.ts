@@ -19,10 +19,9 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { dispose } from 'vs/base/common/lifecycle';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { IFileService } from 'vs/platform/files/common/files';
 
 export interface IOpenCallbacks {
-	openInternal: (input: EditorInput, options: EditorOptions) => Promise<void>;
+	openInternal: (input: EditorInput, options: EditorOptions | undefined) => Promise<void>;
 	openExternal: (uri: URI) => void;
 }
 
@@ -32,10 +31,10 @@ export interface IOpenCallbacks {
 export abstract class BaseBinaryResourceEditor extends BaseEditor {
 
 	private readonly _onMetadataChanged: Emitter<void> = this._register(new Emitter<void>());
-	get onMetadataChanged(): Event<void> { return this._onMetadataChanged.event; }
+	readonly onMetadataChanged: Event<void> = this._onMetadataChanged.event;
 
 	private readonly _onDidOpenInPlace: Emitter<void> = this._register(new Emitter<void>());
-	get onDidOpenInPlace(): Event<void> { return this._onDidOpenInPlace.event; }
+	readonly onDidOpenInPlace: Event<void> = this._onDidOpenInPlace.event;
 
 	private callbacks: IOpenCallbacks;
 	private metadata: string | undefined;
@@ -48,9 +47,8 @@ export abstract class BaseBinaryResourceEditor extends BaseEditor {
 		callbacks: IOpenCallbacks,
 		telemetryService: ITelemetryService,
 		themeService: IThemeService,
-		@IFileService private readonly fileService: IFileService,
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
-		@IStorageService storageService: IStorageService
+		@IStorageService storageService: IStorageService,
 	) {
 		super(id, telemetryService, themeService, storageService);
 
@@ -74,7 +72,7 @@ export abstract class BaseBinaryResourceEditor extends BaseEditor {
 		parent.appendChild(this.scrollbar.getDomNode());
 	}
 
-	async setInput(input: EditorInput, options: EditorOptions, token: CancellationToken): Promise<void> {
+	async setInput(input: EditorInput, options: EditorOptions | undefined, token: CancellationToken): Promise<void> {
 		await super.setInput(input, options, token);
 		const model = await input.resolve();
 
@@ -93,14 +91,14 @@ export abstract class BaseBinaryResourceEditor extends BaseEditor {
 			this.resourceViewerContext.dispose();
 		}
 
-		this.resourceViewerContext = ResourceViewer.show({ name: model.getName(), resource: model.getResource(), size: model.getSize(), etag: model.getETag(), mime: model.getMime() }, this.fileService, this.binaryContainer, this.scrollbar, {
+		this.resourceViewerContext = ResourceViewer.show({ name: model.getName(), resource: model.getResource(), size: model.getSize(), etag: model.getETag(), mime: model.getMime() }, this.binaryContainer, this.scrollbar, {
 			openInternalClb: () => this.handleOpenInternalCallback(input, options),
 			openExternalClb: this.environmentService.configuration.remoteAuthority ? undefined : resource => this.callbacks.openExternal(resource),
 			metadataClb: meta => this.handleMetadataChanged(meta)
 		});
 	}
 
-	private async handleOpenInternalCallback(input: EditorInput, options: EditorOptions): Promise<void> {
+	private async handleOpenInternalCallback(input: EditorInput, options: EditorOptions | undefined): Promise<void> {
 		await this.callbacks.openInternal(input, options);
 
 		// Signal to listeners that the binary editor has been opened in-place

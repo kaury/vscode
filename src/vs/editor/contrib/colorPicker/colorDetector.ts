@@ -19,6 +19,7 @@ import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { ColorProviderRegistry } from 'vs/editor/common/modes';
 import { IColorData, getColors } from 'vs/editor/contrib/colorPicker/color';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { EditorOption } from 'vs/editor/common/config/editorOptions';
 
 const MAX_DECORATORS = 500;
 
@@ -36,7 +37,7 @@ export class ColorDetector extends Disposable implements IEditorContribution {
 	private _colorDatas = new Map<string, IColorData>();
 
 	private _colorDecoratorIds: string[] = [];
-	private readonly _decorationsTypes: { [key: string]: boolean } = {};
+	private readonly _decorationsTypes = new Set<string>();
 
 	private _isEnabled: boolean;
 
@@ -78,13 +79,13 @@ export class ColorDetector extends Disposable implements IEditorContribution {
 		// handle deprecated settings. [languageId].colorDecorators.enable
 		const deprecatedConfig = this._configurationService.getValue<{}>(languageId.language);
 		if (deprecatedConfig) {
-			const colorDecorators = deprecatedConfig['colorDecorators']; // deprecatedConfig.valueOf('.colorDecorators.enable');
+			const colorDecorators = (deprecatedConfig as any)['colorDecorators']; // deprecatedConfig.valueOf('.colorDecorators.enable');
 			if (colorDecorators && colorDecorators['enable'] !== undefined && !colorDecorators['enable']) {
 				return colorDecorators['enable'];
 			}
 		}
 
-		return this._editor.getConfiguration().contribInfo.colorDecorators;
+		return this._editor.getOption(EditorOption.colorDecorators);
 	}
 
 	getId(): string {
@@ -180,7 +181,7 @@ export class ColorDetector extends Disposable implements IEditorContribution {
 			let color = `rgba(${rgba.r}, ${rgba.g}, ${rgba.b}, ${rgba.a})`;
 			let key = 'colorBox-' + subKey;
 
-			if (!this._decorationsTypes[key] && !newDecorationsTypes[key]) {
+			if (!this._decorationsTypes.has(key) && !newDecorationsTypes[key]) {
 				this._codeEditorService.registerDecorationType(key, {
 					before: {
 						contentText: ' ',
@@ -210,11 +211,11 @@ export class ColorDetector extends Disposable implements IEditorContribution {
 			});
 		}
 
-		for (let subType in this._decorationsTypes) {
+		this._decorationsTypes.forEach(subType => {
 			if (!newDecorationsTypes[subType]) {
 				this._codeEditorService.removeDecorationType(subType);
 			}
-		}
+		});
 
 		this._colorDecoratorIds = this._editor.deltaDecorations(this._colorDecoratorIds, decorations);
 	}
@@ -223,9 +224,9 @@ export class ColorDetector extends Disposable implements IEditorContribution {
 		this._decorationsIds = this._editor.deltaDecorations(this._decorationsIds, []);
 		this._colorDecoratorIds = this._editor.deltaDecorations(this._colorDecoratorIds, []);
 
-		for (let subType in this._decorationsTypes) {
+		this._decorationsTypes.forEach(subType => {
 			this._codeEditorService.removeDecorationType(subType);
-		}
+		});
 	}
 
 	getColorData(position: Position): IColorData | null {

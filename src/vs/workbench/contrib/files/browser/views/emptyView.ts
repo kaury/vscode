@@ -6,7 +6,6 @@
 import * as nls from 'vs/nls';
 import * as errors from 'vs/base/common/errors';
 import * as DOM from 'vs/base/browser/dom';
-import { IAction } from 'vs/base/common/actions';
 import { Button } from 'vs/base/browser/ui/button/button';
 import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -21,15 +20,20 @@ import { ViewletPanel, IViewletPanelOptions } from 'vs/workbench/browser/parts/v
 import { ResourcesDropHandler, DragAndDropObserver } from 'vs/workbench/browser/dnd';
 import { listDropBackground } from 'vs/platform/theme/common/colorRegistry';
 import { SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
+import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+import { ILabelService } from 'vs/platform/label/common/label';
+import { Schemas } from 'vs/base/common/network';
+import { isWeb } from 'vs/base/common/platform';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 
 export class EmptyView extends ViewletPanel {
 
 	static readonly ID: string = 'workbench.explorer.emptyView';
 	static readonly NAME = nls.localize('noWorkspace', "No Folder Opened");
 
-	private button: Button;
-	private messageElement: HTMLElement;
-	private titleElement: HTMLElement;
+	private button!: Button;
+	private messageElement!: HTMLElement;
+	private titleElement!: HTMLElement;
 
 	constructor(
 		options: IViewletViewOptions,
@@ -38,19 +42,26 @@ export class EmptyView extends ViewletPanel {
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
-		@IConfigurationService configurationService: IConfigurationService
+		@IConfigurationService configurationService: IConfigurationService,
+		@IWorkbenchEnvironmentService private environmentService: IWorkbenchEnvironmentService,
+		@ILabelService private labelService: ILabelService,
+		@IContextKeyService contextKeyService: IContextKeyService
 	) {
-		super({ ...(options as IViewletPanelOptions), ariaHeaderLabel: nls.localize('explorerSection', "Files Explorer Section") }, keybindingService, contextMenuService, configurationService);
-		this.contextService.onDidChangeWorkbenchState(() => this.setLabels());
+		super({ ...(options as IViewletPanelOptions), ariaHeaderLabel: nls.localize('explorerSection', "Files Explorer Section") }, keybindingService, contextMenuService, configurationService, contextKeyService);
+		this._register(this.contextService.onDidChangeWorkbenchState(() => this.setLabels()));
+		this._register(this.labelService.onDidChangeFormatters(() => this.setLabels()));
 	}
 
 	renderHeader(container: HTMLElement): void {
+		const twisties = document.createElement('div');
+		DOM.addClasses(twisties, 'twisties', 'codicon', 'codicon-chevron-right');
+		container.appendChild(twisties);
+
 		const titleContainer = document.createElement('div');
 		DOM.addClass(titleContainer, 'title');
 		container.appendChild(titleContainer);
 
 		this.titleElement = document.createElement('span');
-		this.titleElement.textContent = name;
 		titleContainer.appendChild(this.titleElement);
 	}
 
@@ -72,8 +83,9 @@ export class EmptyView extends ViewletPanel {
 			if (!this.actionRunner) {
 				return;
 			}
-			const actionClass = this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE ? AddRootFolderAction : OpenFolderAction;
-			const action = this.instantiationService.createInstance<string, string, IAction>(actionClass, actionClass.ID, actionClass.LABEL);
+			const action = this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE
+				? this.instantiationService.createInstance(AddRootFolderAction, AddRootFolderAction.ID, AddRootFolderAction.LABEL)
+				: this.instantiationService.createInstance(OpenFolderAction, OpenFolderAction.ID, OpenFolderAction.LABEL);
 			this.actionRunner.run(action).then(() => {
 				action.dispose();
 			}, err => {
@@ -117,7 +129,12 @@ export class EmptyView extends ViewletPanel {
 			}
 			this.titleElement.textContent = EmptyView.NAME;
 		} else {
-			this.messageElement.textContent = nls.localize('noFolderHelp', "You have not yet opened a folder.");
+			if (this.environmentService.configuration.remoteAuthority && !isWeb) {
+				const hostLabel = this.labelService.getHostLabel(Schemas.vscodeRemote, this.environmentService.configuration.remoteAuthority);
+				this.messageElement.textContent = hostLabel ? nls.localize('remoteNoFolderHelp', "Connected to {0}", hostLabel) : nls.localize('connecting', "Connecting...");
+			} else {
+				this.messageElement.textContent = nls.localize('noFolderHelp', "You have not yet opened a folder.");
+			}
 			if (this.button) {
 				this.button.label = nls.localize('openFolder', "Open Folder");
 			}

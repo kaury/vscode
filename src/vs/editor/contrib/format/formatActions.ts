@@ -24,6 +24,7 @@ import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { onUnexpectedError } from 'vs/base/common/errors';
+import { EditorOption } from 'vs/editor/common/config/editorOptions';
 
 class FormatOnType implements editorCommon.IEditorContribution {
 
@@ -59,7 +60,7 @@ class FormatOnType implements editorCommon.IEditorContribution {
 		this._callOnModel.clear();
 
 		// we are disabled
-		if (!this._editor.getConfiguration().contribInfo.formatOnType) {
+		if (!this._editor.getOption(EditorOption.formatOnType)) {
 			return;
 		}
 
@@ -181,10 +182,10 @@ class FormatOnPaste implements editorCommon.IEditorContribution {
 	private _update(): void {
 
 		// clean up
-		this._callOnModel.dispose();
+		this._callOnModel.clear();
 
 		// we are disabled
-		if (!this.editor.getConfiguration().contribInfo.formatOnPaste) {
+		if (!this.editor.getOption(EditorOption.formatOnPaste)) {
 			return;
 		}
 
@@ -248,7 +249,7 @@ class FormatSelectionAction extends EditorAction {
 		super({
 			id: 'editor.action.formatSelection',
 			label: nls.localize('formatSelection.label', "Format Selection"),
-			alias: 'Format Code',
+			alias: 'Format Selection',
 			precondition: ContextKeyExpr.and(EditorContextKeys.writable, EditorContextKeys.hasDocumentSelectionFormattingProvider),
 			kbOpts: {
 				kbExpr: ContextKeyExpr.and(EditorContextKeys.editorTextFocus, EditorContextKeys.hasDocumentSelectionFormattingProvider),
